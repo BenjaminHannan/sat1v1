@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAT Speed Race</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #0b0d14;
+  color: #f1f5f9;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.screen { display: none; width: 100%; max-width: 680px; }
+.screen.active { display: block; }
+
+/* ── Logo ── */
+.logo { text-align: center; margin-bottom: 36px; }
+.logo h1 {
+  font-size: 2.4rem; font-weight: 900;
+  background: linear-gradient(135deg, #818cf8, #a78bfa, #e879f9);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  letter-spacing: -1px;
+}
+.logo p { color: #475569; margin-top: 6px; font-size: 0.95rem; }
+
+/* ── Cards ── */
+.card {
+  background: #13162b;
+  border: 1px solid #1e2140;
+  border-radius: 18px;
+  padding: 32px;
+}
+
+/* ── Buttons ── */
+.btn {
+  display: block; width: 100%; padding: 14px 24px;
+  border: none; border-radius: 12px; font-size: 1rem;
+  font-weight: 700; cursor: pointer; transition: all 0.15s;
+  font-family: inherit;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff; box-shadow: 0 4px 20px rgba(99,102,241,0.35);
+}
+.btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(99,102,241,0.5); }
+.btn-secondary { background: #1e2140; color: #cbd5e1; border: 1px solid #2d3260; }
+.btn-secondary:hover:not(:disabled) { background: #252847; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+.btn-sm { display: inline-block; width: auto; padding: 8px 16px; font-size: 0.85rem; }
+
+/* ── Input ── */
+.input {
+  width: 100%; padding: 13px 16px;
+  background: #0b0d14; border: 1px solid #1e2140;
+  border-radius: 12px; color: #f1f5f9; font-size: 1rem;
+  outline: none; transition: border-color 0.15s; font-family: inherit;
+  letter-spacing: 2px; text-transform: uppercase;
+}
+.input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+
+/* ── Divider ── */
+.divider {
+  display: flex; align-items: center; gap: 14px;
+  margin: 22px 0; color: #334155; font-size: 0.85rem;
+}
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #1e2140; }
+
+/* ── Room code display ── */
+.room-code {
+  font-size: 3.2rem; font-weight: 900; letter-spacing: 10px;
+  color: #818cf8; text-align: center; margin: 20px 0;
+  font-family: 'Courier New', monospace;
+  user-select: all; cursor: pointer;
+}
+.copy-hint { text-align: center; font-size: 0.8rem; color: #334155; margin-top: -12px; margin-bottom: 16px; }
+
+/* ── Spinner ── */
+.spinner {
+  width: 36px; height: 36px; border: 3px solid #1e2140;
+  border-top-color: #818cf8; border-radius: 50%;
+  animation: spin 0.8s linear infinite; margin: 20px auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Score bar ── */
+.scorebar {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 16px;
+}
+.player-score { text-align: center; flex: 1; }
+.player-score .name { color: #475569; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; }
+.player-score .score { font-size: 2.6rem; font-weight: 900; line-height: 1; margin-top: 2px; }
+.you .score { color: #818cf8; }
+.opp .score { color: #e879f9; }
+.q-counter { color: #475569; font-size: 0.9rem; font-weight: 600; }
+
+/* ── Timer ── */
+.timer-row { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.timer-num { font-size: 0.9rem; font-weight: 700; color: #64748b; min-width: 24px; text-align: right; }
+.timer-bar { flex: 1; height: 6px; background: #1e2140; border-radius: 3px; overflow: hidden; }
+.timer-fill { height: 100%; border-radius: 3px; transition: width 1s linear, background-color 0.5s; }
+
+/* ── Question ── */
+.q-meta { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.badge {
+  padding: 3px 10px; border-radius: 20px; font-size: 0.72rem;
+  font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+  background: #1e2140; color: #64748b;
+}
+.badge.math { background: #0c2041; color: #60a5fa; }
+.badge.reading { background: #0c2a1e; color: #34d399; }
+.badge.writing { background: #2a0c36; color: #c084fc; }
+.badge.easy { color: #22c55e; }
+.badge.medium { color: #f59e0b; }
+.badge.hard { color: #ef4444; }
+
+.q-text { font-size: 1.05rem; line-height: 1.75; color: #e2e8f0; margin-bottom: 24px; }
+
+/* ── Choices ── */
+.choices { display: grid; gap: 10px; }
+.choice-btn {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 16px; background: #0b0d14;
+  border: 2px solid #1e2140; border-radius: 12px;
+  color: #e2e8f0; font-size: 0.92rem; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left; width: 100%; font-family: inherit;
+}
+.choice-btn:hover:not(:disabled) { border-color: #6366f1; background: #13162b; }
+.choice-btn:disabled { cursor: not-allowed; }
+.clabel {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: #1e2140; display: flex; align-items: center;
+  justify-content: center; font-weight: 800; font-size: 0.8rem;
+  flex-shrink: 0; transition: background 0.15s; color: #94a3b8;
+}
+.choice-btn.selected .clabel { background: #6366f1; color: #fff; }
+.choice-btn.correct { border-color: #22c55e; background: rgba(34,197,94,0.08); }
+.choice-btn.correct .clabel { background: #22c55e; color: #fff; }
+.choice-btn.wrong { border-color: #ef4444; background: rgba(239,68,68,0.08); }
+.choice-btn.wrong .clabel { background: #ef4444; color: #fff; }
+
+/* ── Status bar ── */
+.status-bar {
+  margin-top: 16px; padding: 11px 16px; border-radius: 10px;
+  background: #1e2140; text-align: center; font-size: 0.85rem;
+  color: #64748b; min-height: 42px; display: flex;
+  align-items: center; justify-content: center;
+}
+
+/* ── Round result overlay ── */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+  z-index: 200; align-items: center; justify-content: center;
+}
+.overlay.show { display: flex; }
+.result-card {
+  background: #13162b; border: 1px solid #2d3260;
+  border-radius: 20px; padding: 36px 40px; text-align: center;
+  min-width: 300px; animation: popIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes popIn { from { transform: scale(0.75); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.r-emoji { font-size: 2.8rem; margin-bottom: 10px; }
+.r-title { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
+.r-detail { font-size: 0.85rem; color: #64748b; margin-bottom: 16px; }
+.r-answers {
+  display: flex; gap: 16px; justify-content: center; margin-top: 16px;
+}
+.r-player {
+  flex: 1; padding: 12px; border-radius: 10px;
+  background: #0b0d14; border: 1px solid #1e2140;
+}
+.r-player .rp-name { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #475569; margin-bottom: 4px; }
+.r-player .rp-ans { font-size: 1.4rem; font-weight: 900; }
+.r-player .rp-time { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+.r-player.won { border-color: #6366f1; }
+.r-player .rp-ans.correct-color { color: #22c55e; }
+.r-player .rp-ans.wrong-color { color: #ef4444; }
+.r-player .rp-ans.none-color { color: #334155; }
+
+/* ── Countdown ── */
+.countdown-num {
+  font-size: 8rem; font-weight: 900; text-align: center;
+  background: linear-gradient(135deg, #818cf8, #e879f9);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  line-height: 1;
+}
+
+/* ── Game over ── */
+.go-scores { display: flex; align-items: center; justify-content: center; gap: 32px; margin: 28px 0; }
+.go-player { text-align: center; }
+.go-player .gp-name { color: #475569; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.go-player .gp-score { font-size: 5rem; font-weight: 900; line-height: 1; }
+.you .gp-score { color: #818cf8; }
+.opp .gp-score { color: #e879f9; }
+.go-vs { color: #334155; font-size: 1.5rem; font-weight: 700; }
+.winner-strip {
+  border-radius: 12px; padding: 14px;
+  text-align: center; font-size: 1.15rem; font-weight: 800; margin-bottom: 20px;
+}
+.winner-strip.win { background: linear-gradient(135deg, #1a1f5e, #2d1f5e); border: 1px solid #6366f1; color: #a5b4fc; }
+.winner-strip.lose { background: #1a0f0f; border: 1px solid #7f1d1d; color: #fca5a5; }
+.winner-strip.tie { background: #0f1a1a; border: 1px solid #134e4a; color: #6ee7b7; }
+
+/* ── Misc ── */
+.error { color: #f87171; font-size: 0.82rem; margin-top: 8px; text-align: center; min-height: 20px; }
+.muted { color: #334155; font-size: 0.82rem; text-align: center; margin-top: 14px; }
+.mt { margin-top: 12px; }
+.mt2 { margin-top: 20px; }
+.pulse-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: #818cf8; animation: pulseDot 1.5s ease-in-out infinite;
+  margin-right: 6px;
+}
+@keyframes pulseDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.6)} }
+
+a { color: #818cf8; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+@media (max-width: 500px) {
+  .card { padding: 20px; }
+  .logo h1 { font-size: 1.9rem; }
+  .r-answers { flex-direction: column; }
+  .room-code { font-size: 2.4rem; letter-spacing: 6px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ LOBBY ══════════════ -->
+<div id="screen-lobby" class="screen active">
+  <div class="logo">
+    <h1>SAT Speed Race</h1>
+    <p>Race your opponent to answer SAT questions first</p>
+  </div>
+  <div class="card">
+    <button class="btn btn-primary" id="createBtn" onclick="createRoom()">⚡ Create Room</button>
+    <div class="divider">or join a room</div>
+    <input class="input" id="codeInput" placeholder="ENTER ROOM CODE" maxlength="6"
+           oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')joinRoom()">
+    <button class="btn btn-secondary mt" id="joinBtn" onclick="joinRoom()">→ Join Room</button>
+    <p class="error" id="lobbyErr"></p>
+    <p class="muted">Questions sourced from <a href="https://github.com/Anas099X/OpenSAT" target="_blank">OpenSAT</a></p>
+  </div>
+</div>
+
+<!-- ══════════════ WAITING (HOST) ══════════════ -->
+<div id="screen-waiting" class="screen">
+  <div class="logo"><h1>SAT Speed Race</h1></div>
+  <div class="card" style="text-align:center;">
+    <p style="color:#475569; margin-bottom:4px; font-size:0.85rem; text-transform:uppercase; letter-spacing:1px;">Room Code</p>
+    <div class="room-code" id="displayCode" title="Click to copy" onclick="copyCode()">------</div>
+    <p class="copy-hint">Click to copy</p>
+    <p style="color:#64748b; margin-bottom:4px;">Share this code with your opponent</p>
+    <div class="spinner"></div>
+    <p style="color:#475569; font-size:0.9rem;"><span class="pulse-dot"></span>Waiting for opponent…</p>
+    <button class="btn btn-secondary mt2" onclick="goBack()">Cancel</button>
+  </div>
+</div>
+
+<!-- ══════════════ COUNTDOWN ══════════════ -->
+<div id="screen-countdown" class="screen">
+  <div class="logo"><h1>SAT Speed Race</h1></div>
+  <div class="card" style="text-align:center; padding:48px 32px;">
+    <p style="color:#64748b; margin-bottom:20px; font-size:0.95rem;">Opponent connected! Get ready…</p>
+    <div class="countdown-num" id="countNum">3</div>
+  </div>
+</div>
+
+<!-- ══════════════ GAME ══════════════ -->
+<div id="screen-game" class="screen">
+  <div class="scorebar">
+    <div class="player-score you">
+      <div class="name">You</div>
+      <div class="score" id="myScoreEl">0</div>
+    </div>
+    <div class="q-counter" id="qCounter">Q 1 / 10</div>
+    <div class="player-score opp">
+      <div class="name">Opponent</div>
+      <div class="score" id="oppScoreEl">0</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="timer-row">
+      <div class="timer-bar"><div class="timer-fill" id="timerFill" style="width:100%;background:#22c55e;"></div></div>
+      <div class="timer-num" id="timerNum">30</div>
+    </div>
+    <div class="q-meta">
+      <span class="badge" id="domainBadge">SAT</span>
+      <span class="badge" id="diffBadge">Medium</span>
+    </div>
+    <div class="q-text" id="qText">Loading…</div>
+    <div class="choices" id="choicesEl"></div>
+    <div class="status-bar" id="statusBar">Choose your answer</div>
+  </div>
+</div>
+
+<!-- ══════════════ GAME OVER ══════════════ -->
+<div id="screen-gameover" class="screen">
+  <div class="logo"><h1>SAT Speed Race</h1></div>
+  <div class="card">
+    <div class="winner-strip" id="winnerStrip">🏆 You Win!</div>
+    <div class="go-scores">
+      <div class="go-player you">
+        <div class="gp-name">You</div>
+        <div class="gp-score" id="finalMine">0</div>
+      </div>
+      <div class="go-vs">–</div>
+      <div class="go-player opp">
+        <div class="gp-name">Opponent</div>
+        <div class="gp-score" id="finalOpp">0</div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="playAgain()">Play Again</button>
+    <button class="btn btn-secondary mt" onclick="goBack()">Back to Lobby</button>
+  </div>
+</div>
+
+<!-- ══════════════ ROUND RESULT OVERLAY ══════════════ -->
+<div class="overlay" id="roundOverlay">
+  <div class="result-card">
+    <div class="r-emoji" id="rEmoji">🎯</div>
+    <div class="r-title" id="rTitle">Correct!</div>
+    <div class="r-detail" id="rDetail">You got the point!</div>
+    <div class="r-answers">
+      <div class="r-player" id="rpMe">
+        <div class="rp-name">You</div>
+        <div class="rp-ans" id="rMeAns">—</div>
+        <div class="rp-time" id="rMeTime"></div>
+      </div>
+      <div class="r-player" id="rpOpp">
+        <div class="rp-name">Opponent</div>
+        <div class="rp-ans" id="rOppAns">—</div>
+        <div class="rp-time" id="rOppTime"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+//  FALLBACK QUESTIONS  (used if API fails)
+// ════════════════════════════════════════
+const FALLBACK = [
+  { question: "If 3x + 7 = 22, what is the value of x?",
+    choices: { A:"3", B:"5", C:"7", D:"15" }, answer:"B", domain:"Math", difficulty:"Easy" },
+  { question: "A store sells notebooks for $3 each and pens for $1.50 each. A student spends $12 total on n notebooks and p pens. Which equation represents this?",
+    choices: { A:"3n + 1.5p = 12", B:"n + p = 12", C:"4.5(n+p) = 12", D:"3n − 1.5p = 12" }, answer:"A", domain:"Math", difficulty:"Easy" },
+  { question: "What is 15% of 240?",
+    choices: { A:"24", B:"30", C:"36", D:"40" }, answer:"C", domain:"Math", difficulty:"Easy" },
+  { question: "If f(x) = 2x² − 3x + 1, what is f(3)?",
+    choices: { A:"10", B:"12", C:"16", D:"18" }, answer:"A", domain:"Math", difficulty:"Medium" },
+  { question: "The mean of 5, 8, 12, and x is 9. What is x?",
+    choices: { A:"9", B:"10", C:"11", D:"12" }, answer:"C", domain:"Math", difficulty:"Easy" },
+  { question: "A line passes through (0, 3) and (4, 7). What is its slope?",
+    choices: { A:"1/2", B:"1", C:"2", D:"4" }, answer:"B", domain:"Math", difficulty:"Easy" },
+  { question: "If 2^x = 32, what is x?",
+    choices: { A:"4", B:"5", C:"6", D:"16" }, answer:"B", domain:"Math", difficulty:"Easy" },
+  { question: "A circle has a radius of 5. What is its area?",
+    choices: { A:"10π", B:"25π", C:"50π", D:"100π" }, answer:"B", domain:"Math", difficulty:"Easy" },
+  { question: "If x² − 5x + 6 = 0, what are the solutions?",
+    choices: { A:"x = 1 and x = 6", B:"x = 2 and x = 3", C:"x = −2 and x = −3", D:"x = −1 and x = −6" }, answer:"B", domain:"Math", difficulty:"Medium" },
+  { question: "A right triangle has legs of length 3 and 4. What is the length of the hypotenuse?",
+    choices: { A:"5", B:"6", C:"7", D:"√7" }, answer:"A", domain:"Math", difficulty:"Easy" },
+  { question: "20% of what number is 45?",
+    choices: { A:"9", B:"90", C:"225", D:"900" }, answer:"C", domain:"Math", difficulty:"Medium" },
+  { question: "The ratio of boys to girls is 3:5. If there are 24 boys, how many girls are there?",
+    choices: { A:"30", B:"35", C:"40", D:"45" }, answer:"C", domain:"Math", difficulty:"Medium" },
+  { question: "What is the value of |−15| + |−9|?",
+    choices: { A:"−24", B:"−6", C:"6", D:"24" }, answer:"D", domain:"Math", difficulty:"Easy" },
+  { question: "If 5y − 3 = 2y + 9, what is y?",
+    choices: { A:"2", B:"3", C:"4", D:"6" }, answer:"C", domain:"Math", difficulty:"Easy" },
+  { question: "Which value of x satisfies 4(x − 2) = 2x + 6?",
+    choices: { A:"5", B:"7", C:"8", D:"10" }, answer:"B", domain:"Math", difficulty:"Medium" },
+  { question: "The word \"ephemeral\" most nearly means:",
+    choices: { A:"Lasting only a short time", B:"Extremely large", C:"Difficult to understand", D:"Brightly colored" }, answer:"A", domain:"Reading & Writing", difficulty:"Medium" },
+  { question: "Which sentence is correct?",
+    choices: { A:"Their going to the store.", B:"There going to the store.", C:"They're going to the store.", D:"Theyre going to the store." }, answer:"C", domain:"Reading & Writing", difficulty:"Easy" },
+  { question: "\"The scientist's hypothesis was subsequently vindicated.\" The word \"vindicated\" most nearly means:",
+    choices: { A:"Criticized", B:"Confirmed", C:"Abandoned", D:"Ignored" }, answer:"B", domain:"Reading & Writing", difficulty:"Medium" },
+  { question: "Which sentence is punctuated correctly?",
+    choices: { A:"The meeting however was canceled.", B:"The meeting, however, was canceled.", C:"The meeting however, was canceled.", D:"The meeting, however was canceled." }, answer:"B", domain:"Reading & Writing", difficulty:"Medium" },
+  { question: "\"The results were anomalous\" — the results were:",
+    choices: { A:"Expected", B:"Accurate", C:"Unusual", D:"Significant" }, answer:"C", domain:"Reading & Writing", difficulty:"Medium" },
+  { question: "The word \"juxtaposition\" refers to:",
+    choices: { A:"Placing things side by side for comparison", B:"A type of logical fallacy", C:"An extreme exaggeration", D:"A written apology" }, answer:"A", domain:"Reading & Writing", difficulty:"Hard" },
+  { question: "A student writes: \"Between you and I, the test was hard.\" What is the error?",
+    choices: { A:"\"Between\" should be \"among\"", B:"\"I\" should be \"me\"", C:"\"hard\" should be \"hardly\"", D:"There is no error" }, answer:"B", domain:"Reading & Writing", difficulty:"Hard" },
+  { question: "Which word best fits: \"The new policy was ___ because it benefited all parties.\"",
+    choices: { A:"contentious", B:"equitable", C:"superfluous", D:"ambiguous" }, answer:"B", domain:"Reading & Writing", difficulty:"Medium" },
+  { question: "\"The author uses an anecdote to…\" An anecdote is:",
+    choices: { A:"A short personal story", B:"A statistical fact", C:"A counterargument", D:"A definition" }, answer:"A", domain:"Reading & Writing", difficulty:"Easy" },
+  { question: "Select the option that corrects the underlined portion: \"Each of the students have submitted their assignments.\"",
+    choices: { A:"has submitted their", B:"have submitted his or her", C:"has submitted his or her", D:"No change needed" }, answer:"C", domain:"Reading & Writing", difficulty:"Hard" },
+];
+
+// ════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════
+let peer = null, conn = null;
+let isHost = false;
+let questions = [];
+let qIdx = 0;
+let myScore = 0, oppScore = 0;
+let myAns = null, oppAns = null;
+let myMs = null, oppMs = null;
+let qStart = 0;
+let timer = null;
+let roundDone = false;
+let pendingStart = null;
+const TOTAL = 10;
+const TIME = 30;
+
+// ════════════════════════════════════════
+//  SCREENS
+// ════════════════════════════════════════
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+}
+
+// ════════════════════════════════════════
+//  LOBBY
+// ════════════════════════════════════════
+function createRoom() {
+  setLobbyErr('');
+  const code = mkCode();
+  document.getElementById('displayCode').textContent = code;
+  show('waiting');
+
+  peer = new Peer(code, { debug: 0 });
+  isHost = true;
+
+  peer.on('error', (err) => {
+    if (err.type === 'unavailable-id') {
+      // Retry with a new code
+      const c2 = mkCode();
+      document.getElementById('displayCode').textContent = c2;
+      peer = new Peer(c2, { debug: 0 });
+      peer.on('connection', onHostConnection);
+      peer.on('error', genericErr);
+    } else {
+      genericErr(err);
+    }
+  });
+  peer.on('connection', onHostConnection);
+}
+
+function onHostConnection(c) {
+  conn = c;
+  setupConn();
+  runCountdown();
+}
+
+function joinRoom() {
+  const code = document.getElementById('codeInput').value.trim().toUpperCase();
+  if (code.length < 3) { setLobbyErr('Enter a valid room code.'); return; }
+  setLobbyErr('');
+
+  const jBtn = document.getElementById('joinBtn');
+  jBtn.disabled = true; jBtn.textContent = 'Connecting…';
+
+  peer = new Peer(undefined, { debug: 0 });
+  isHost = false;
+
+  let connected = false;
+  const timeout = setTimeout(() => {
+    if (!connected) {
+      jBtn.disabled = false; jBtn.textContent = '→ Join Room';
+      setLobbyErr('Connection timed out. Check the room code.');
+    }
+  }, 12000);
+
+  peer.on('open', () => {
+    conn = peer.connect(code, { reliable: true });
+    conn.on('open', () => {
+      connected = true;
+      clearTimeout(timeout);
+      setupConn();
+      runCountdown();
+    });
+    conn.on('error', () => {
+      clearTimeout(timeout);
+      jBtn.disabled = false; jBtn.textContent = '→ Join Room';
+      setLobbyErr('Could not connect. Check the room code and try again.');
+    });
+  });
+  peer.on('error', () => {
+    clearTimeout(timeout);
+    jBtn.disabled = false; jBtn.textContent = '→ Join Room';
+    setLobbyErr('Connection error. Try again.');
+  });
+}
+
+function mkCode() {
+  const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:6}, () => a[Math.floor(Math.random()*a.length)]).join('');
+}
+
+function copyCode() {
+  const code = document.getElementById('displayCode').textContent;
+  navigator.clipboard.writeText(code).catch(() => {});
+  const el = document.getElementById('displayCode');
+  const orig = el.textContent;
+  el.textContent = 'COPIED!';
+  setTimeout(() => el.textContent = orig, 1200);
+}
+
+function goBack() {
+  if (peer) { peer.destroy(); peer = null; }
+  conn = null;
+  document.getElementById('joinBtn').disabled = false;
+  document.getElementById('joinBtn').textContent = '→ Join Room';
+  document.getElementById('codeInput').value = '';
+  setLobbyErr('');
+  show('lobby');
+}
+
+function setLobbyErr(msg) { document.getElementById('lobbyErr').textContent = msg; }
+
+// ════════════════════════════════════════
+//  CONNECTION
+// ════════════════════════════════════════
+function setupConn() {
+  conn.on('data', handleMsg);
+  conn.on('close', () => { alert('Opponent disconnected.'); location.reload(); });
+  conn.on('error', (e) => console.error(e));
+}
+
+function send(type, data) {
+  if (conn && conn.open) conn.send({ type, data });
+}
+
+function handleMsg(msg) {
+  switch (msg.type) {
+    case 'QUESTIONS':
+      questions = msg.data;
+      if (pendingStart !== null) { startRound(pendingStart); pendingStart = null; }
+      break;
+    case 'START_ROUND':
+      if (questions.length) startRound(msg.data);
+      else pendingStart = msg.data;
+      break;
+    case 'ANSWER':
+      receiveOppAns(msg.data);
+      break;
+  }
+}
+
+// ════════════════════════════════════════
+//  COUNTDOWN
+// ════════════════════════════════════════
+function runCountdown() {
+  show('countdown');
+  let n = 3;
+  const el = document.getElementById('countNum');
+  el.textContent = n;
+
+  if (isHost) {
+    fetchQ().then(q => { questions = q; });
+  }
+
+  const iv = setInterval(() => {
+    n--;
+    if (n <= 0) {
+      clearInterval(iv);
+      el.textContent = '🚀';
+      setTimeout(() => {
+        if (isHost) {
+          send('QUESTIONS', questions);
+          setTimeout(() => {
+            myScore = 0; oppScore = 0; qIdx = 0;
+            send('START_ROUND', 0);
+            startRound(0);
+          }, 300);
+        }
+      }, 600);
+    } else {
+      el.textContent = n;
+    }
+  }, 1000);
+}
+
+// ════════════════════════════════════════
+//  FETCH QUESTIONS
+// ════════════════════════════════════════
+async function fetchQ() {
+  try {
+    const r = await fetch('https://pinesat.com/api/questions', {
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!r.ok) throw new Error('non-200');
+    const data = await r.json();
+    const arr = Array.isArray(data) ? data : (data.questions || data.data || []);
+    if (!arr.length) throw new Error('empty');
+
+    const normalized = arr.map(q => {
+      // Handle different possible field shapes from OpenSAT
+      let choices = q.choices || q.options || {};
+      if (!choices.A && q.option_a) choices = { A: q.option_a, B: q.option_b, C: q.option_c, D: q.option_d };
+      if (!choices.A && q.optionA) choices = { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD };
+      return {
+        question: q.question || q.stem || q.text || '',
+        choices,
+        answer: (q.answer || q.correct || q.correctAnswer || q.correct_answer || 'A').toUpperCase(),
+        domain: q.domain || q.section || q.category || 'SAT',
+        difficulty: q.difficulty || q.level || 'Medium'
+      };
+    }).filter(q => q.question && q.choices && q.choices.A);
+
+    if (normalized.length >= TOTAL) return shuffle(normalized).slice(0, TOTAL);
+    throw new Error('not enough');
+  } catch (e) {
+    console.log('API unavailable, using bundled questions.', e.message);
+    return shuffle([...FALLBACK]).slice(0, TOTAL);
+  }
+}
+
+function shuffle(a) {
+  for (let i = a.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+// ════════════════════════════════════════
+//  GAME
+// ════════════════════════════════════════
+function startRound(idx) {
+  qIdx = idx;
+  myAns = null; oppAns = null;
+  myMs = null; oppMs = null;
+  roundDone = false;
+  if (timer) clearInterval(timer);
+
+  updateScores();
+  document.getElementById('qCounter').textContent = `Q ${idx+1} / ${TOTAL}`;
+  show('game');
+
+  const q = questions[idx];
+  // Domain badge
+  const db = document.getElementById('domainBadge');
+  db.textContent = q.domain;
+  db.className = 'badge';
+  const dom = q.domain.toLowerCase();
+  if (dom.includes('math')) db.classList.add('math');
+  else if (dom.includes('read')) db.classList.add('reading');
+  else if (dom.includes('writ')) db.classList.add('writing');
+
+  const diff = (q.difficulty||'').toLowerCase();
+  const df = document.getElementById('diffBadge');
+  df.textContent = q.difficulty || 'Medium';
+  df.className = 'badge';
+  if (diff === 'easy') df.classList.add('easy');
+  else if (diff === 'hard') df.classList.add('hard');
+  else df.classList.add('medium');
+
+  document.getElementById('qText').textContent = q.question;
+
+  const ce = document.getElementById('choicesEl');
+  ce.innerHTML = '';
+  ['A','B','C','D'].forEach(l => {
+    if (!q.choices[l]) return;
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.dataset.l = l;
+    btn.innerHTML = `<span class="clabel">${l}</span><span>${q.choices[l]}</span>`;
+    btn.onclick = () => pick(l);
+    ce.appendChild(btn);
+  });
+
+  document.getElementById('statusBar').textContent = 'Choose your answer!';
+  startTimer();
+  qStart = Date.now();
+}
+
+function startTimer() {
+  let rem = TIME;
+  const fill = document.getElementById('timerFill');
+  const num  = document.getElementById('timerNum');
+  fill.style.width = '100%';
+  fill.style.backgroundColor = '#22c55e';
+  num.textContent = rem;
+
+  timer = setInterval(() => {
+    rem--;
+    num.textContent = rem;
+    const pct = rem / TIME * 100;
+    fill.style.width = pct + '%';
+    if (pct > 50) fill.style.backgroundColor = '#22c55e';
+    else if (pct > 20) fill.style.backgroundColor = '#eab308';
+    else fill.style.backgroundColor = '#ef4444';
+
+    if (rem <= 0) {
+      clearInterval(timer);
+      if (!roundDone && myMs === null) {
+        // Timed out without answering
+        myMs = TIME * 1000 + 1;
+        send('ANSWER', { ans: null, ms: myMs });
+        tryResolve();
+      }
+    }
+  }, 1000);
+}
+
+function pick(letter) {
+  if (myAns || roundDone) return;
+  myAns = letter;
+  myMs = Date.now() - qStart;
+
+  document.querySelectorAll('.choice-btn').forEach(b => {
+    b.disabled = true;
+    if (b.dataset.l === letter) b.classList.add('selected');
+  });
+  document.getElementById('statusBar').textContent = 'Answer locked in — waiting for opponent…';
+  send('ANSWER', { ans: letter, ms: myMs });
+  tryResolve();
+}
+
+function receiveOppAns(data) {
+  oppAns = data.ans;
+  oppMs  = data.ms;
+  if (!myAns && !roundDone) {
+    document.getElementById('statusBar').textContent = 'Opponent answered — pick yours!';
+  }
+  tryResolve();
+}
+
+function tryResolve() {
+  if (roundDone) return;
+  if (myMs === null || oppMs === null) return; // wait for both
+
+  roundDone = true;
+  if (timer) clearInterval(timer);
+
+  const q = questions[qIdx];
+  const correct = q.answer;
+  const myOk  = myAns  === correct;
+  const oppOk = oppAns === correct;
+
+  let winner = null;
+  if (myOk && !oppOk)  winner = 'me';
+  else if (oppOk && !myOk) winner = 'opp';
+  else if (myOk && oppOk)  winner = myMs <= oppMs ? 'me' : 'opp';
+  // both wrong → no winner
+
+  if (winner === 'me')  myScore++;
+  if (winner === 'opp') oppScore++;
+  updateScores();
+
+  // Reveal answers
+  document.querySelectorAll('.choice-btn').forEach(b => {
+    b.disabled = true;
+    if (b.dataset.l === correct) b.classList.add('correct');
+    else if (b.dataset.l === myAns) b.classList.add('wrong');
+  });
+
+  showRoundOverlay(winner, myOk, oppOk, correct);
+
+  const delay = 2800;
+  setTimeout(() => {
+    document.getElementById('roundOverlay').classList.remove('show');
+    const next = qIdx + 1;
+    if (next >= TOTAL) {
+      endGame();
+    } else if (isHost) {
+      send('START_ROUND', next);
+      startRound(next);
+    }
+    // Joiner waits for START_ROUND message
+  }, delay);
+}
+
+function showRoundOverlay(winner, myOk, oppOk, correct) {
+  const q = questions[qIdx];
+  const correctText = q.choices[correct] ? `${correct}: ${q.choices[correct]}` : correct;
+
+  let emoji, title, detail;
+  if (winner === 'me') {
+    emoji = '🏆'; title = 'You Win This Round!';
+    detail = myOk
+      ? `Correct! +1 point  ·  ${fmt(myMs)} vs ${fmt(oppMs)}`
+      : 'Opponent was also wrong — your guess was closer';
+  } else if (winner === 'opp') {
+    emoji = '😤'; title = 'Opponent Wins This Round';
+    detail = myOk
+      ? `Both correct — opponent was faster (${fmt(oppMs)} vs ${fmt(myMs)})`
+      : `Correct answer: ${correctText}`;
+  } else {
+    emoji = '🤷'; title = 'Both Wrong — No Point!';
+    detail = `Correct answer: ${correctText}`;
+  }
+
+  document.getElementById('rEmoji').textContent = emoji;
+  document.getElementById('rTitle').textContent = title;
+  document.getElementById('rDetail').textContent = detail;
+
+  // My card
+  const meEl = document.getElementById('rMeAns');
+  meEl.textContent = myAns || '—';
+  meEl.className = 'rp-ans ' + (myAns ? (myOk ? 'correct-color' : 'wrong-color') : 'none-color');
+  document.getElementById('rMeTime').textContent = myAns ? fmt(myMs) : 'No answer';
+  document.getElementById('rpMe').classList.toggle('won', winner === 'me');
+
+  // Opp card
+  const oppEl = document.getElementById('rOppAns');
+  oppEl.textContent = oppAns || '—';
+  oppEl.className = 'rp-ans ' + (oppAns ? (oppOk ? 'correct-color' : 'wrong-color') : 'none-color');
+  document.getElementById('rOppTime').textContent = oppAns ? fmt(oppMs) : 'No answer';
+  document.getElementById('rpOpp').classList.toggle('won', winner === 'opp');
+
+  document.getElementById('roundOverlay').classList.add('show');
+}
+
+function fmt(ms) {
+  if (ms === null || ms === undefined) return '—';
+  if (ms > TIME * 1000) return 'Timeout';
+  return (ms / 1000).toFixed(1) + 's';
+}
+
+function updateScores() {
+  document.getElementById('myScoreEl').textContent  = myScore;
+  document.getElementById('oppScoreEl').textContent = oppScore;
+}
+
+function endGame() {
+  show('gameover');
+  document.getElementById('finalMine').textContent = myScore;
+  document.getElementById('finalOpp').textContent  = oppScore;
+  const strip = document.getElementById('winnerStrip');
+  if (myScore > oppScore) {
+    strip.textContent = '🏆 You Win!'; strip.className = 'winner-strip win';
+  } else if (oppScore > myScore) {
+    strip.textContent = '😤 You Lose!'; strip.className = 'winner-strip lose';
+  } else {
+    strip.textContent = '🤝 It\'s a Tie!'; strip.className = 'winner-strip tie';
+  }
+}
+
+function playAgain() {
+  // Re-use existing connection
+  if (isHost) {
+    myScore = 0; oppScore = 0; qIdx = 0;
+    fetchQ().then(q => {
+      questions = q;
+      send('QUESTIONS', questions);
+      setTimeout(() => {
+        send('START_ROUND', 0);
+        startRound(0);
+      }, 300);
+    });
+  }
+  // Joiner waits for host START_ROUND
+  if (!isHost) {
+    show('countdown');
+    document.getElementById('countNum').textContent = '⏳';
+    document.getElementById('countNum').style.fontSize = '3rem';
+  }
+}
+
+function genericErr(err) {
+  show('lobby');
+  setLobbyErr('Error: ' + (err.message || err.type || 'Unknown error'));
+}
+</script>
+</body>
+</html>
